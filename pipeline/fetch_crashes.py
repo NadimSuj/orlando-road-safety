@@ -1,19 +1,77 @@
 import requests
+import pandas as pd
+import os
+import json
+
+CACHE_FILE = "data/crashes_raw.json"
 
 CRASH_URL = "https://gis.fdot.gov/arcgis/rest/services/Crashes_All/FeatureServer/0/query"
+PAGE_SIZE = 1000
+WHERE = ("COUNTY_TXT = 'ORANGE' AND CALENDAR_YEAR >= 2014 AND CALENDAR_YEAR <= 2018 "
+         "AND INJSEVER IN ('1','2','3','4','5')")
 
-params = {
-    "where": "COUNTY_TXT = 'ORANGE' AND CALENDAR_YEAR >= 2014 AND CALENDAR_YEAR <= 2018 AND INJSEVER IN ('1','2','3','4','5')",
-    "groupByFieldsForStatistics": "ROADWAYID,INJSEVER", 
-    "outStatistics": '[{"statisticType":"count","onStatisticField":"XID","outStatisticFieldName":"n"}]', #count the crashes, and call that count n. XID is the crash ID, so counting XID is counting the crashes.
-    #groupByFieldForStatistics and outStatistics work togeher to group the data by the fields specified in groupByFieldsForStatistics, and then apply the statistics specified in outStatistics to each group. In this case, we are grouping by ROADWAYID and INJSEVER, and counting the number of crashes (XID) for each group. 
-    #Basically:group all 140,584 crashes into buckets where every crash in a bucket shares the same roadway and the same severity code. Then count how many crashes are in each bucket.
-    "returnGeometry": "false",
-    "f": "json",
-}
+if os.path.exists(CACHE_FILE):
+    print(f"Loading from cache: {CACHE_FILE}")
+    with open(CACHE_FILE) as f:
+        all_rows = json.load(f)
+    print(f"Loaded {len(all_rows)} records from cache")
+else:
+    all_rows = []
+    offset = 0
 
-response = requests.get(CRASH_URL, params=params)
-data = response.json()
+    while True:
+        params = {
+            "where": WHERE,
+            "outFields": "ROADWAYID,INJSEVER",
+            "orderByFields": "OBJECTID",
+            "returnGeometry": "false",
+            "resultOffset": offset,
+            "resultRecordCount": PAGE_SIZE,
+            "f": "json",
+        }
 
-print(f"Rows returned: {len(data['features'])}")
-print(data['features'][:3])
+        response = requests.get(CRASH_URL, params=params)
+        data = response.json()
+
+        if "error" in data:
+            print("API error:", data["error"])
+            break
+
+        features = data["features"]
+        all_rows.extend(f["attributes"] for f in features)
+
+        print(f"offset={offset}, got {len(features)}, total {len(all_rows)}")
+
+        if len(features) < PAGE_SIZE:
+            break
+        offset += PAGE_SIZE
+
+    print(f"Fetched {len(all_rows)} crash records")
+    with open(CACHE_FILE, "w") as f:
+        json.dump(all_rows, f)
+    print(f"Saved to {CACHE_FILE}")
+
+
+print(f"Working with {len(all_rows)} crash records")
+
+df = pd.DataFrame(all_rows)
+print(df.head())
+print(df['ROADWAYID'].str[:2].value_counts().head())
+
+counts = df.groupby(['ROADWAYID', 'INJSEVER']).size().reset_index(name='n')
+print(counts.head(10))
+print(f"Unique roadway-severity combinations: {len(counts)}")
+
+pivot = counts.pivot(index='ROADWAYID', columns='INJSEVER', values='n').fillna(0)
+print(pivot.head())
+
+roads = pd.DataFrame({
+    'pdo':     pivot['1'],
+    'other':   pivot['2'] + pivot['3'],
+    'serious': pivot['4'],
+    'fatal':   pivot['5'],
+})
+roads['total'] = roads.sum(axis=1)
+print(roads.head(10))
+print(f"Roadways: {len(roads)}")
+print(f"Total crashes: {roads['total'].sum()}")
