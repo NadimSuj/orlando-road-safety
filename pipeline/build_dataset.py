@@ -1,8 +1,6 @@
 import pandas as pd
 import geopandas as gpd
 import json
-import requests
-import os
 
 CRASH_CACHE = "data/crashes_raw.json"
 SEGMENT_CACHE = "data/segments_raw.geojson"
@@ -207,19 +205,35 @@ print(f"\nRoads with no score (zero VMT): {roads['score_freq'].isna().sum()}")
 # =====================================================
 # 7. VALIDATE AND WRITE
 # =====================================================
-# print row count, crash total, score ranges
-# print the top 10 roads by each score
-# write to OUTPUT as GeoJSON
+
+MIN_LENGTH_MI = 0.1
+
+cov = pd.read_csv("data/coverage.csv", dtype={'ROADWAY': str}).set_index('ROADWAY')
+roads = roads.join(cov[['excluded_share']])
+roads['excluded_share'] = roads['excluded_share'].fillna(0)
+
+MAX_EXCLUDED_SHARE = 0.2
+
+roads['rankable'] = (roads['STREET_NAME'].notna()
+                     & (roads['length_mi'] >= MIN_LENGTH_MI)
+                     & (roads['excluded_share'] <= MAX_EXCLUDED_SHARE))
+
+ranked = roads[roads['rankable']]
+print(f"\nRankable roads: {len(ranked)} of {len(roads)}")
+
+# any real-looking road that still has some excluded length?
+partial = roads[(roads['excluded_share'] > 0)
+                & roads['STREET_NAME'].notna()
+                & (roads['length_mi'] >= MIN_LENGTH_MI)]
+print(f"\nNamed roads >= {MIN_LENGTH_MI} mi with excluded length: {len(partial)}")
+print(partial[['STREET_NAME', 'length_mi', 'excluded_share', 'total', 'score_freq']])
+cols = ['STREET_NAME', 'length_mi', 'aadt', 'lanes', 'speed_max', 'total', 'fatal']
 
 print("\n--- Top 10 by frequency-weighted score ---")
-print(roads.nlargest(10, 'score_freq')[
-    ['STREET_NAME', 'length_mi', 'aadt', 'lanes', 'speed_max', 'total', 'fatal', 'score_freq']
-])
+print(ranked.nlargest(10, 'score_freq')[cols + ['score_freq']])
 
 print("\n--- Top 10 by cost-weighted score ---")
-print(roads.nlargest(10, 'score_cost')[
-    ['STREET_NAME', 'length_mi', 'aadt', 'lanes', 'speed_max', 'total', 'fatal', 'score_cost']
-])
+print(ranked.nlargest(10, 'score_cost')[cols + ['score_cost']])
 
 roads.to_file(OUTPUT, driver='GeoJSON')
 print(f"\nWrote {len(roads)} roadways to {OUTPUT}")
