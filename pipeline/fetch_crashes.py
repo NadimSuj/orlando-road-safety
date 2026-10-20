@@ -22,7 +22,7 @@ else:
     while True:
         params = {
             "where": WHERE,
-            "outFields": "ROADWAYID,INJSEVER",
+            "outFields": "ROADWAYID,INJSEVER,CALENDAR_YEAR,AVERAGE_DAILY_TRAFFIC,CNTOFLANES,SPEED_LIMIT",
             "orderByFields": "OBJECTID",
             "returnGeometry": "false",
             "resultOffset": offset,

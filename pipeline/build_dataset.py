@@ -95,28 +95,26 @@ for col in ['whole', 'L', 'R']:
     if col not in aadt_by_side.columns:
         aadt_by_side[col]=0
 
-has_whole = aadt_by_side['whole'] > 0
-aadt = aadt_by_side['whole'].where(has_whole, aadt_by_side['L'] + aadt_by_side['R'])
+whole_len = len_by_side['whole']
+lr_len    = len_by_side[['L', 'R']].max(axis=1)
 
-# --- lanes: if the roadway has a whole-road record, use that lane count; otherwise add L + R. ---
-# TODO
-
+lr_aadt = aadt_by_side['L'] + aadt_by_side['R']
+aadt = (aadt_by_side['whole'] * whole_len + lr_aadt * lr_len) / (whole_len + lr_len)
+# --- lanes: typical cross-section — length-weighted within each side,
+#     then blended across undivided and divided stretches like AADT ---
+gdf['lanes_x_len'] = gdf['NUMBER_OF_THROUGH_LANES'] * gdf['SEGMENT_LENGTH_MI']
 lanes_by_side = (
-    gdf.groupby(['ROADWAY', 'side_group'])['NUMBER_OF_THROUGH_LANES']
-       .max()
-       .unstack(fill_value=0)
-)
+    gdf.groupby(['ROADWAY', 'side_group'])['lanes_x_len'].sum()
+    / gdf.groupby(['ROADWAY', 'side_group'])['SEGMENT_LENGTH_MI'].sum()
+).unstack(fill_value=0)
 
 for col in ['whole', 'L', 'R']:
     if col not in lanes_by_side.columns:
         lanes_by_side[col] = 0
 
-lanes = lanes_by_side['whole'].where(
-    lanes_by_side['whole'] > 0,
-    lanes_by_side['L'] + lanes_by_side['R']
-)
-
-
+lr_lanes = lanes_by_side['L'] + lanes_by_side['R']
+lanes = ((lanes_by_side['whole'] * whole_len + lr_lanes * lr_len)
+         / (whole_len + lr_len)).round(1)
 # --- speed: plain max and mean across all segments of the roadway ---
 # TODO
 speed_max  = gdf.groupby('ROADWAY')['SPEED_LIMIT'].max()
