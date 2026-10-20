@@ -87,25 +87,64 @@ length_mi = len_by_side['whole'] + len_by_side[['L', 'R']].max(axis=1)
 # --- AADT: length-weighted mean within each side group, then combine ---
 # TODO: for each (ROADWAY, side_group), compute sum(AADT * length) / sum(length)
 # then: aadt = whole + L + R
+gdf['aadt_x_len'] = gdf['AADT'] * gdf['SEGMENT_LENGTH_MI']
+numerator = gdf.groupby(['ROADWAY','side_group'])['aadt_x_len'].sum()
+denominator = gdf.groupby(['ROADWAY','side_group'])['SEGMENT_LENGTH_MI'].sum()
 
+aadt_by_side = (numerator/denominator).unstack(fill_value=0)
 
-# --- lanes: same combination rule as AADT ---
+for col in ['whole', 'L', 'R']:
+    if col not in aadt_by_side.columns:
+        aadt_by_side[col]=0
+
+has_whole = aadt_by_side['whole'] > 0
+aadt = aadt_by_side['whole'].where(has_whole, aadt_by_side['L'] + aadt_by_side['R'])
+
+# --- lanes: if the roadway has a whole-road record, use that lane count; otherwise add L + R. ---
 # TODO
+
+lanes_by_side = (
+    gdf.groupby(['ROADWAY', 'side_group'])['NUMBER_OF_THROUGH_LANES']
+       .max()
+       .unstack(fill_value=0)
+)
+
+for col in ['whole', 'L', 'R']:
+    if col not in lanes_by_side.columns:
+        lanes_by_side[col] = 0
+
+lanes = lanes_by_side['whole'].where(
+    lanes_by_side['whole'] > 0,
+    lanes_by_side['L'] + lanes_by_side['R']
+)
 
 
 # --- speed: plain max and mean across all segments of the roadway ---
 # TODO
-
+speed_max  = gdf.groupby('ROADWAY')['SPEED_LIMIT'].max()
+speed_mean = gdf.groupby('ROADWAY')['SPEED_LIMIT'].mean()
 
 # --- descriptive fields: most common value per roadway ---
 # TODO: street_name, median_type, func_class
 
+def most_common(s):
+    m = s.mode()
+    return m.iloc[0] if not m.empty else None
+
+desc_fields = gdf.groupby('ROADWAY')[
+    ['STREET_NAME', 'MEDIAN_TYPE_ID', 'FLARIS_FUNCTIONAL_CLASS_CD']
+].agg(most_common)
 
 # --- assemble into one DataFrame indexed by ROADWAY ---
 attrs = pd.DataFrame({
     'length_mi': length_mi,
-    # ... the rest
+    'aadt':      aadt,
+    'lanes':     lanes,
+    'speed_max': speed_max,
+    'speed_mean': speed_mean,
 })
+
+attrs = attrs.join(desc_fields)
 
 print(attrs.head(10))
 print(f"Roadways with attributes: {len(attrs)}")
@@ -118,6 +157,10 @@ print(f"\nI-4 check:\n{attrs.loc['75280000']}")
 # dissolve segments by ROADWAY to get one geometry per road
 # keep only the geometry column — attributes come from step 3
 
+geom = gdf[['ROADWAY', 'geometry']].dissolve(by='ROADWAY')
+
+print(f"Dissolved to {len(geom)} geometries")
+print(geom.head(3))
 
 # =====================================================
 # 5. JOIN EVERYTHING
@@ -127,6 +170,15 @@ print(f"\nI-4 check:\n{attrs.loc['75280000']}")
 # left join the step-1 crash counts
 # fill missing crash counts with 0
 
+roads = geom.join(attrs)
+roads = roads.join(crashes, how='left')
+
+crash_cols = ['pdo', 'other', 'serious', 'fatal', 'total']
+roads[crash_cols] = roads[crash_cols].fillna(0)
+
+print(f"Final roadways: {len(roads)}")
+print(f"Roads with zero crashes: {(roads['total'] == 0).sum()}")
+print(f"Crashes matched: {roads['total'].sum():.0f} of 140584")
 
 # =====================================================
 # 6. COMPUTE SCORES
@@ -134,7 +186,23 @@ print(f"\nI-4 check:\n{attrs.loc['75280000']}")
 # W_freq and W_cost from the weight tables
 # score = (W * 100_000_000) / (aadt * 365 * YEARS * length)
 # guard against division by zero
+def weighted(w):
+    return (roads['fatal']   * w['fatal']
+          + roads['serious'] * w['serious']
+          + roads['other']   * w['other']
+          + roads['pdo']     * w['pdo'])
 
+roads['w_freq'] = weighted(WEIGHTS_FREQ)
+roads['w_cost'] = weighted(WEIGHTS_COST)
+
+# vehicle-miles traveled over the study period
+vmt = roads['aadt'] * 365 * YEARS * roads['length_mi']
+
+roads['score_freq'] = (roads['w_freq'] * 100_000_000 / vmt).where(vmt > 0)
+roads['score_cost'] = (roads['w_cost'] * 100_000_000 / vmt).where(vmt > 0)
+
+print(roads[['score_freq', 'score_cost']].describe())
+print(f"\nRoads with no score (zero VMT): {roads['score_freq'].isna().sum()}")
 
 # =====================================================
 # 7. VALIDATE AND WRITE
@@ -142,3 +210,16 @@ print(f"\nI-4 check:\n{attrs.loc['75280000']}")
 # print row count, crash total, score ranges
 # print the top 10 roads by each score
 # write to OUTPUT as GeoJSON
+
+print("\n--- Top 10 by frequency-weighted score ---")
+print(roads.nlargest(10, 'score_freq')[
+    ['STREET_NAME', 'length_mi', 'aadt', 'lanes', 'speed_max', 'total', 'fatal', 'score_freq']
+])
+
+print("\n--- Top 10 by cost-weighted score ---")
+print(roads.nlargest(10, 'score_cost')[
+    ['STREET_NAME', 'length_mi', 'aadt', 'lanes', 'speed_max', 'total', 'fatal', 'score_cost']
+])
+
+roads.to_file(OUTPUT, driver='GeoJSON')
+print(f"\nWrote {len(roads)} roadways to {OUTPUT}")
