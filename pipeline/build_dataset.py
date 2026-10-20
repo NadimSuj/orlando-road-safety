@@ -15,11 +15,9 @@ WEIGHTS_COST = {"fatal": 540, "serious": 55, "other": 12, "pdo": 1}
 # =====================================================
 # 1. LOAD CRASHES AND BUCKET BY SEVERITY
 # =====================================================
-# load CRASH_CACHE json into a DataFrame
-# groupby ROADWAYID + INJSEVER, count
-# pivot so each roadway is one row with severity columns
-# collapse into four buckets: pdo, other, serious, fatal
-# (this is the code you already wrote in fetch_crashes.py)
+# Loads crash records, counts by ROADWAYID + INJSEVER, pivots to one row
+# per roadway, then collapses INJSEVER codes into four buckets:
+#   pdo=1, other=2+3, serious=4, fatal=5
 
 with open(CRASH_CACHE) as f:
     crash_rows = json.load(f)
@@ -41,7 +39,6 @@ print(f"Crash roadways: {len(crashes)}, total crashes: {crashes['total'].sum():.
 # =====================================================
 # 2. LOAD SEGMENTS
 # =====================================================
-# load SEGMENT_CACHE into a GeoDataFrame
 
 with open(SEGMENT_CACHE) as f:
     segment_data = json.load(f)
@@ -52,25 +49,22 @@ print(f"Segments: {len(gdf)}, unique roadways: {gdf['ROADWAY'].nunique()}")
 # =====================================================
 # 3. AGGREGATE ATTRIBUTES BY ROADWAY
 # =====================================================
-# For each roadway you need, using the ROADSIDE rules:
+# Aggregates segment-level data to one row per ROADWAY using ROADSIDE rules:
 #
-#   true_length_mi  = C + O + max(L, R)
-#   true_aadt       = C + O + (L + R)        length-weighted within each side
-#   lanes_total     = C + O + (L + R)
-#   speed_max       = plain max across all segments
-#   speed_mean      = plain mean across all segments
-#   street_name     = most common value
-#   median_type     = most common value
-#   func_class      = most common value
-#
-# Build this as a DataFrame indexed by ROADWAY.
+#   length_mi  = whole + max(L, R)
+#   aadt       = length-weighted mean within each side group,
+#                then blended: (whole * whole_len + lr * lr_len) / total_len
+#   lanes      = same blending method as aadt
+#   speed_max  = max across all segments
+#   speed_mean = mean across all segments
+#   street_name, median_type, func_class = modal value across all segments
 
-# Treat C and O as "whole-road" representations, L and R as directional
+# C and O represent undivided (whole-road) segments; L and R are directional
 gdf['side_group'] = gdf['ROADSIDE'].map(
     lambda s: 'whole' if s in ('C', 'O') else s
 )
 
-# --- length: sum within each side group ---
+# --- length: summed within each side group, then whole + max(L, R) ---
 len_by_side = (gdf.groupby(['ROADWAY', 'side_group'])['SEGMENT_LENGTH_MI']
                   .sum()
                   .unstack(fill_value=0))
@@ -82,9 +76,7 @@ for col in ['whole', 'L', 'R']:
 length_mi = len_by_side['whole'] + len_by_side[['L', 'R']].max(axis=1)
 
 
-# --- AADT: length-weighted mean within each side group, then combine ---
-# TODO: for each (ROADWAY, side_group), compute sum(AADT * length) / sum(length)
-# then: aadt = whole + L + R
+# --- AADT: length-weighted mean per side group, blended across whole and L+R ---
 gdf['aadt_x_len'] = gdf['AADT'] * gdf['SEGMENT_LENGTH_MI']
 numerator = gdf.groupby(['ROADWAY','side_group'])['aadt_x_len'].sum()
 denominator = gdf.groupby(['ROADWAY','side_group'])['SEGMENT_LENGTH_MI'].sum()
@@ -100,8 +92,8 @@ lr_len    = len_by_side[['L', 'R']].max(axis=1)
 
 lr_aadt = aadt_by_side['L'] + aadt_by_side['R']
 aadt = (aadt_by_side['whole'] * whole_len + lr_aadt * lr_len) / (whole_len + lr_len)
-# --- lanes: typical cross-section — length-weighted within each side,
-#     then blended across undivided and divided stretches like AADT ---
+
+# --- lanes: length-weighted within each side group, blended across whole and L+R ---
 gdf['lanes_x_len'] = gdf['NUMBER_OF_THROUGH_LANES'] * gdf['SEGMENT_LENGTH_MI']
 lanes_by_side = (
     gdf.groupby(['ROADWAY', 'side_group'])['lanes_x_len'].sum()
@@ -115,14 +107,12 @@ for col in ['whole', 'L', 'R']:
 lr_lanes = lanes_by_side['L'] + lanes_by_side['R']
 lanes = ((lanes_by_side['whole'] * whole_len + lr_lanes * lr_len)
          / (whole_len + lr_len)).round(1)
-# --- speed: plain max and mean across all segments of the roadway ---
-# TODO
+
+# --- speed: max and mean across all segments ---
 speed_max  = gdf.groupby('ROADWAY')['SPEED_LIMIT'].max()
 speed_mean = gdf.groupby('ROADWAY')['SPEED_LIMIT'].mean()
 
-# --- descriptive fields: most common value per roadway ---
-# TODO: street_name, median_type, func_class
-
+# --- descriptive fields: modal value across all segments ---
 def most_common(s):
     m = s.mode()
     return m.iloc[0] if not m.empty else None
@@ -150,8 +140,8 @@ print(f"\nI-4 check:\n{attrs.loc['75280000']}")
 # =====================================================
 # 4. DISSOLVE GEOMETRY
 # =====================================================
-# dissolve segments by ROADWAY to get one geometry per road
-# keep only the geometry column — attributes come from step 3
+# Dissolves segments by ROADWAY into a single geometry per road;
+# attributes come from step 3, not from this dissolve.
 
 geom = gdf[['ROADWAY', 'geometry']].dissolve(by='ROADWAY')
 
@@ -161,10 +151,8 @@ print(geom.head(3))
 # =====================================================
 # 5. JOIN EVERYTHING
 # =====================================================
-# start from the dissolved geometry (this is your base)
-# attach the step-3 attributes
-# left join the step-1 crash counts
-# fill missing crash counts with 0
+# Joins step-3 attributes and step-1 crash counts onto the dissolved geometry;
+# roads with no crashes get zero-filled counts.
 
 roads = geom.join(attrs)
 roads = roads.join(crashes, how='left')
@@ -179,9 +167,8 @@ print(f"Crashes matched: {roads['total'].sum():.0f} of 140584")
 # =====================================================
 # 6. COMPUTE SCORES
 # =====================================================
-# W_freq and W_cost from the weight tables
-# score = (W * 100_000_000) / (aadt * 365 * YEARS * length)
-# guard against division by zero
+# Applies frequency and cost weight tables to crash counts, then normalizes
+# by vehicle-miles traveled: score = (W * 100_000_000) / (aadt * 365 * YEARS * length_mi)
 def weighted(w):
     return (roads['fatal']   * w['fatal']
           + roads['serious'] * w['serious']
@@ -219,7 +206,7 @@ roads['rankable'] = (roads['STREET_NAME'].notna()
 ranked = roads[roads['rankable']]
 print(f"\nRankable roads: {len(ranked)} of {len(roads)}")
 
-# any real-looking road that still has some excluded length?
+# named roads >= 0.1 mi that have some excluded segment length
 partial = roads[(roads['excluded_share'] > 0)
                 & roads['STREET_NAME'].notna()
                 & (roads['length_mi'] >= MIN_LENGTH_MI)]
