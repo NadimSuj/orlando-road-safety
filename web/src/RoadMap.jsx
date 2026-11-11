@@ -14,9 +14,10 @@ const COLOR_EXPR = [
   [
     'interpolate', ['linear'],
     ['get', 'score_freq_pct'],
-    0,   '#22c55e',
-    50,  '#eab308',
-    100, '#ef4444',
+    0,   '#0d9488',
+    40,  '#eab308',
+    75,  '#ea580c',
+    100, '#991b1b',
   ],
   '#94a3b8',
 ]
@@ -49,7 +50,12 @@ export default function RoadMap() {
           source: 'roads',
           paint: {
             'line-color': COLOR_EXPR,
-            'line-width': 2,
+            'line-width': [
+              'interpolate', ['linear'], ['zoom'],
+              10, 3,   // width at city view
+              14, 5,   // width at neighborhood view
+              17, 7,   // width at street view
+            ],
           },
         },
         firstLabelId,
