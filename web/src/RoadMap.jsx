@@ -41,6 +41,7 @@ export default function RoadMap() {
       map.addSource('roads', {
         type: 'geojson',
         data: '/orlando_roads.geojson',
+        tolerance: 0,
       })
 
       map.addLayer(
