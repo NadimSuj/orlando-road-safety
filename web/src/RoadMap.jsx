@@ -24,6 +24,22 @@ export default function RoadMap() {
 
     mapRef.current = map
 
+map.on('load', () => {
+  map.addSource('roads', {
+    type: 'geojson',
+    data: '/orlando_roads.geojson'
+  })
+
+  const firstLabelId = map.getStyle().layers.find(l => l.type === 'symbol').id
+
+  map.addLayer({
+    id: 'roads-line',
+    type: 'line',
+    source: 'roads',
+    paint: { 'line-color': '#2b6cb0', 'line-width': 2 }
+  }, firstLabelId)
+})
+
     return () => {
       map.remove()
       mapRef.current = null

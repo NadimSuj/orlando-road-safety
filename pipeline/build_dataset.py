@@ -220,5 +220,10 @@ print(ranked.nlargest(10, 'score_freq')[cols + ['score_freq']])
 print("\n--- Top 10 by cost-weighted score ---")
 print(ranked.nlargest(10, 'score_cost')[cols + ['score_cost']])
 
+roads['score_freq_pct'] = roads['score_freq'].where(roads['rankable']).rank(pct=True) * 100
+roads['score_cost_pct'] = roads['score_cost'].where(roads['rankable']).rank(pct=True) * 100
+
+print(roads[['score_freq_pct', 'score_cost_pct']].describe())
+
 roads.to_file(OUTPUT, driver='GeoJSON')
 print(f"\nWrote {len(roads)} roadways to {OUTPUT}")
