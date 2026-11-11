@@ -2,48 +2,61 @@ import { useEffect, useRef } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
-
 maplibregl.setWorkerUrl(workerUrl)
 
 const BASEMAP = 'https://tiles.openfreemap.org/styles/positron'
-const ORLANDO = [-81.38, 28.54]   // [longitude, latitude]
+const ORLANDO = [-81.38, 28.54]
 const START_ZOOM = 10
 
+const COLOR_EXPR = [
+  'case',
+  ['get', 'rankable'],
+  [
+    'interpolate', ['linear'],
+    ['get', 'score_freq_pct'],
+    0,   '#22c55e',
+    50,  '#eab308',
+    100, '#ef4444',
+  ],
+  '#94a3b8',
+]
+
 export default function RoadMap() {
-  const containerRef = useRef(null)   // the <div> the map draws into
-  const mapRef = useRef(null)         // the Mapibre map object
+  const containerRef = useRef(null)
+  const mapRef = useRef(null)
 
   useEffect(() => {
-
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: BASEMAP,
       center: ORLANDO,
-      zoom: START_ZOOM
+      zoom: START_ZOOM,
     })
-
     mapRef.current = map
 
-map.on('load', () => {
-  map.addSource('roads', {
-    type: 'geojson',
-    data: '/orlando_roads.geojson'
-  })
+    map.on('load', () => {
+      const firstLabelId = map.getStyle().layers.find(l => l.type === 'symbol').id
 
-  const firstLabelId = map.getStyle().layers.find(l => l.type === 'symbol').id
+      map.addSource('roads', {
+        type: 'geojson',
+        data: '/orlando_roads.geojson',
+      })
 
-  map.addLayer({
-    id: 'roads-line',
-    type: 'line',
-    source: 'roads',
-    paint: { 'line-color': '#2b6cb0', 'line-width': 2 }
-  }, firstLabelId)
-})
+      map.addLayer(
+        {
+          id: 'roads-line',
+          type: 'line',
+          source: 'roads',
+          paint: {
+            'line-color': COLOR_EXPR,
+            'line-width': 2,
+          },
+        },
+        firstLabelId,
+      )
+    })
 
-    return () => {
-      map.remove()
-      mapRef.current = null
-    }
+    return () => { map.remove(); mapRef.current = null }
   }, [])
 
   return <div ref={containerRef} className="map" />
