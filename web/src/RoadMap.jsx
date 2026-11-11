@@ -48,6 +48,10 @@ export default function RoadMap() {
           id: 'roads-line',
           type: 'line',
           source: 'roads',
+          layout: {
+            'line-cap': 'round',
+            'line-join': 'round',
+          },
           paint: {
             'line-color': COLOR_EXPR,
             'line-width': [
