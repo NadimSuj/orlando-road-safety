@@ -24,7 +24,7 @@ function colorExpr(field) {
   ]
 }
 
-export default function RoadMap({ scoreType }) {
+export default function RoadMap({ scoreType, onSelect }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const [loaded, setLoaded] = useState(false)
@@ -69,6 +69,14 @@ export default function RoadMap({ scoreType }) {
         },
         firstLabelId,
       )
+      map.on('click', 'roads-line', (e) => {
+        onSelect(e.features[0].properties)
+      })
+
+      // show a pointer cursor over roads, so users know they can click
+      map.on('mouseenter', 'roads-line', () => { map.getCanvas().style.cursor = 'pointer' })
+      map.on('mouseleave', 'roads-line', () => { map.getCanvas().style.cursor = '' })
+      
       setLoaded(true)
     })
 

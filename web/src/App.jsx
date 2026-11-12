@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import RoadMap from './RoadMap'
+import ProfilePanel from './ProfilePanel'
 
 export default function App() {
   const [scoreType, setScoreType] = useState('freq')   // start on frequency
+  const [selected, setSelected] = useState(null)       // no road selected yet
 
   return (
     <>
@@ -20,7 +22,14 @@ export default function App() {
           Crash cost
         </button>
       </div>
-      <RoadMap scoreType={scoreType} />
+      <RoadMap scoreType={scoreType} onSelect={setSelected} />
+      {selected && (
+        <ProfilePanel
+          road={selected}
+          scoreType={scoreType}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </>
   )
 }

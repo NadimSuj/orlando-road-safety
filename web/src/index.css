@@ -21,3 +21,25 @@ html, body, #root {
   background: #1f2937;
   color: white;
 }
+
+.panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1;
+  width: 280px;
+  background: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.panel .close {
+  float: right;
+}
+
+html, body, #root {
+  margin: 0;
+  height: 100%;
+  font-family: system-ui, sans-serif;
+}
