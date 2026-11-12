@@ -227,3 +227,5 @@ print(roads[['score_freq_pct', 'score_cost_pct']].describe())
 
 roads.to_file(OUTPUT, driver='GeoJSON')
 print(f"\nWrote {len(roads)} roadways to {OUTPUT}")
+
+print(ranked[['score_freq', 'score_cost']].corr(method='spearman'))

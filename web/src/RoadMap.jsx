@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
@@ -8,24 +8,28 @@ const BASEMAP = 'https://tiles.openfreemap.org/styles/positron'
 const ORLANDO = [-81.38, 28.54]
 const START_ZOOM = 10
 
-const COLOR_EXPR = [
-  'case',
-  ['get', 'rankable'],
-  [
-    'interpolate', ['linear'],
-    ['get', 'score_freq_pct'],
-    0,   '#0d9488',
-    40,  '#eab308',
-    75,  '#ea580c',
-    100, '#991b1b',
-  ],
-  '#94a3b8',
-]
+function colorExpr(field) {
+  return [
+    'case',
+    ['get', 'rankable'],
+    [
+      'interpolate', ['linear'],
+      ['get', field],
+      0,   '#0d9488',
+      40,  '#eab308',
+      75,  '#ea580c',
+      100, '#991b1b',
+    ],
+    '#94a3b8',
+  ]
+}
 
-export default function RoadMap() {
+export default function RoadMap({ scoreType }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
+  const [loaded, setLoaded] = useState(false)
 
+  // Effect 1: create the map once and add the roads layer
   useEffect(() => {
     const map = new maplibregl.Map({
       container: containerRef.current,
@@ -54,7 +58,7 @@ export default function RoadMap() {
             'line-join': 'round',
           },
           paint: {
-            'line-color': COLOR_EXPR,
+            'line-color': colorExpr('score_freq_pct'),
             'line-width': [
               'interpolate', ['linear'], ['zoom'],
               10, 3,   // width at city view
@@ -65,10 +69,18 @@ export default function RoadMap() {
         },
         firstLabelId,
       )
+      setLoaded(true)
     })
 
     return () => { map.remove(); mapRef.current = null }
   }, [])
+
+  // Effect 2: recolor the roads whenever the score type changes
+  useEffect(() => {
+    if (!loaded) return
+    const field = `score_${scoreType}_pct`
+    mapRef.current.setPaintProperty('roads-line', 'line-color', colorExpr(field))
+  }, [scoreType, loaded])
 
   return <div ref={containerRef} className="map" />
 }
