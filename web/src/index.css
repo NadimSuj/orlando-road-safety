@@ -43,3 +43,44 @@ html, body, #root {
   height: 100%;
   font-family: system-ui, sans-serif;
 }
+
+.legend {
+  position: absolute;
+  bottom: 32px;
+  left: 12px;
+  z-index: 1;
+  width: 260px;
+  background: white;
+  padding: 10px 14px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  font-size: 13px;
+}
+.legend .bar { height: 10px; border-radius: 4px; margin: 6px 0 2px; }
+.legend .bar-labels { display: flex; justify-content: space-between; }
+.legend .unranked { margin-top: 8px; display: flex; align-items: center; gap: 6px; }
+.legend .swatch { width: 18px; height: 4px; border-radius: 2px; display: inline-block; }
+
+.panel {
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+.panel h2 { margin: 0 0 6px; font-size: 18px; }
+.panel h3 {
+  margin: 14px 0 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+}
+.panel .headline { margin: 0; font-size: 14px; line-height: 1.5; }
+.panel dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 0;
+  font-size: 13px;
+}
+.panel dt { color: #6b7280; }
+.panel dd { margin: 0; text-align: right; }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import RoadMap from './RoadMap'
 import ProfilePanel from './ProfilePanel'
+import Legend from './Legend'
 
 export default function App() {
   const [scoreType, setScoreType] = useState('freq')   // start on frequency
@@ -22,6 +23,7 @@ export default function App() {
           Crash cost
         </button>
       </div>
+      <Legend scoreType={scoreType} />
       <RoadMap scoreType={scoreType} onSelect={setSelected} />
       {selected && (
         <ProfilePanel
@@ -30,6 +32,7 @@ export default function App() {
           onClose={() => setSelected(null)}
         />
       )}
+      <Legend scoreType={scoreType} />
     </>
   )
 }

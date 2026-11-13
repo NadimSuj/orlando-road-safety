@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
+import { STOPS, UNRANKED } from './colors'
 maplibregl.setWorkerUrl(workerUrl)
 
 const BASEMAP = 'https://tiles.openfreemap.org/styles/positron'
@@ -12,15 +13,8 @@ function colorExpr(field) {
   return [
     'case',
     ['get', 'rankable'],
-    [
-      'interpolate', ['linear'],
-      ['get', field],
-      0,   '#0d9488',
-      40,  '#eab308',
-      75,  '#ea580c',
-      100, '#991b1b',
-    ],
-    '#94a3b8',
+    ['interpolate', ['linear'], ['get', field], ...STOPS.flat()],
+    UNRANKED,
   ]
 }
 
@@ -69,6 +63,7 @@ export default function RoadMap({ scoreType, onSelect }) {
         },
         firstLabelId,
       )
+
       map.on('click', 'roads-line', (e) => {
         onSelect(e.features[0].properties)
       })
@@ -76,7 +71,7 @@ export default function RoadMap({ scoreType, onSelect }) {
       // show a pointer cursor over roads, so users know they can click
       map.on('mouseenter', 'roads-line', () => { map.getCanvas().style.cursor = 'pointer' })
       map.on('mouseleave', 'roads-line', () => { map.getCanvas().style.cursor = '' })
-      
+
       setLoaded(true)
     })
 
