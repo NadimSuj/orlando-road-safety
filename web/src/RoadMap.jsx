@@ -8,6 +8,10 @@ maplibregl.setWorkerUrl(workerUrl)
 const BASEMAP = 'https://tiles.openfreemap.org/styles/positron'
 const ORLANDO = [-81.38, 28.54]
 const START_ZOOM = 10
+const BOUNDS = [
+  [-81.85, 28.25],   // southwest corner
+  [-80.75, 28.90],   // northeast corner
+]
 
 function colorExpr(field) {
   return [
@@ -30,6 +34,7 @@ export default function RoadMap({ scoreType, onSelect }) {
       style: BASEMAP,
       center: ORLANDO,
       zoom: START_ZOOM,
+      maxBounds: BOUNDS,
     })
     mapRef.current = map
 
