@@ -33,8 +33,10 @@ export default function IntroModal({ onClose }) {
         </ul>
 
         <p className="intro-note">
-          A high rate shows where crashes concentrate, not exactly why. Traffic
-          volumes are from 2021.
+            A high rate shows where crashes concentrate, not exactly why. Crashes are
+            from 2014–2018 and traffic counts from 2021; the background map shows
+            today's streets, so roads redesigned since 2018 may look different from
+            when their crashes happened.
         </p>
 
         <button className="intro-button" onClick={onClose}>

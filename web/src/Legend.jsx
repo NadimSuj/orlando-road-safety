@@ -36,6 +36,7 @@ export default function Legend({ scoreType }) {
               ? 'Crashes per 100 million vehicle-miles, lightly weighted by severity, ranked by percentile among Orange County major roads.'
               : 'Severity-weighted crashes (a fatal crash counts ~540× a property-damage crash) per 100 million vehicle-miles, ranked by percentile. Volatile on low-volume roads.'}
           </p>
+          <p className="legend-source">Crashes 2014–2018 · Traffic counts 2021</p>
         </>
       )}
     </div>

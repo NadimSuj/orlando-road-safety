@@ -224,6 +224,11 @@ button:focus-visible {
   line-height: 1.45;
 }
 
+.legend .legend-source {
+  margin-top: 6px;
+  font-size: 11px;
+}
+
 /* ===== Intro ===== */
 .intro-overlay {
   position: fixed;
